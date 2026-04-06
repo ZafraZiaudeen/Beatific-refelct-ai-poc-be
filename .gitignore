@@ -1,0 +1,6 @@
+node_modules
+dist
+.env
+python-service/.venv
+python-service/__pycache__
+python-service/pretrained_models

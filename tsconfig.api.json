@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/api",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo.api"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/apps/agent/**/*.ts",
+    "src/infrastructure/Voice/mirrorAgent.runner.ts",
+    "src/infrastructure/Voice/mirrorAgent.ts"
+  ]
+}
