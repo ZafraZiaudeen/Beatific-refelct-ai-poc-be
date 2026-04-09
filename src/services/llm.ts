@@ -67,7 +67,7 @@ const callOpenRouter = async (messages: Array<{ role: 'system' | 'user' | 'assis
 }
 
 const fallbackAssistantReply = (session: LiveSession, latestEntry: TranscriptEntry): string => {
-  const partnerNames = session.profiles.map((profile) => profile.displayName).join(' and ')
+  const partnerNames = session.profiles.map((p) => p.displayName).join(' and ')
   return `${partnerNames}, stay with the concrete behavior you just named. ${latestEntry.speakerLabel}, say what you need next without repeating the whole argument.`
 }
 
