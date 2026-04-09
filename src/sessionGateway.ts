@@ -10,6 +10,8 @@ import { generateAssistantReply } from './services/llm.js'
 import { identifySpeaker } from './services/speakerId.js'
 import type { LiveSession, SpeakerRole, TranscriptEntry } from './types.js'
 
+const ASSISTANT_BARGE_IN_PEAK = 0.18
+
 const sendJson = (ws: WebSocket, payload: Record<string, unknown>): void => {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload))
@@ -22,15 +24,9 @@ const matchSessionId = (pathname: string): string | null => {
 }
 
 const labelSpeaker = (session: LiveSession, role: SpeakerRole): string => {
-  if (role === 'mirror') {
-    return 'Mirror'
-  }
-
-  if (role === 'unknown') {
-    return 'Unknown speaker'
-  }
-
-  return session.profiles.find((profile) => profile.role === role)?.displayName ?? 'Partner'
+  if (role === 'mirror') return 'Mirror'
+  if (role === 'unknown') return 'Unknown speaker'
+  return session.profiles.find((p) => p.role === role)?.displayName ?? 'Partner'
 }
 
 const pushTranscript = (session: LiveSession, entry: TranscriptEntry): void => {
@@ -89,11 +85,12 @@ const speakAssistantLine = async (
 
     session.isSpeaking = true
     sendJson(ws, { type: 'status', status: 'speaking' })
+    sendJson(ws, { type: 'assistant_audio', replyToken })
     ws.send(audio)
 
     const tokenAtSend = replyToken
     setTimeout(() => {
-      if (session.currentReplyToken === tokenAtSend) {
+      if (session.currentReplyToken === tokenAtSend && session.isSpeaking) {
         session.isSpeaking = false
         sendJson(ws, { type: 'status', status: 'listening' })
       }
@@ -166,11 +163,8 @@ const handleDeepgramPayload = async (
   const message = payload as {
     type?: string
     is_final?: boolean
-    speech_final?: boolean
     channel?: {
-      alternatives?: Array<{
-        transcript?: string
-      }>
+      alternatives?: Array<{ transcript?: string }>
     }
   }
 
@@ -203,6 +197,27 @@ const handleDeepgramPayload = async (
   }
 
   await finalizeUtterance(session, ws, transcript, peakLevel, audioBuffer)
+}
+
+const handleBrowserControlMessage = (
+  session: LiveSession,
+  ws: WebSocket,
+  rawPayload: string,
+): void => {
+  try {
+    const message = JSON.parse(rawPayload) as { type?: string; replyToken?: unknown }
+
+    if (
+      message.type === 'assistant_audio_finished' &&
+      typeof message.replyToken === 'number' &&
+      message.replyToken === session.currentReplyToken
+    ) {
+      session.isSpeaking = false
+      sendJson(ws, { type: 'status', status: 'listening' })
+    }
+  } catch {
+    // Ignore malformed browser control payloads.
+  }
 }
 
 export const attachSessionGateway = (server: Server): void => {
@@ -270,22 +285,31 @@ export const attachSessionGateway = (server: Server): void => {
 
     ws.on('message', (data, isBinary) => {
       if (!isBinary) {
+        handleBrowserControlMessage(session, ws, data.toString())
         return
       }
 
       const chunk = Buffer.from(data as Buffer)
+      const chunkPeakLevel = computePeakLevel(chunk)
+
+      if (session.isSpeaking) {
+        if (chunkPeakLevel < ASSISTANT_BARGE_IN_PEAK) {
+          return
+        }
+
+        session.isSpeaking = false
+        session.currentReplyToken += 1
+        session.currentAudioChunks = []
+        session.currentPeakLevel = 0
+        sendJson(ws, { type: 'clear_audio' })
+        sendJson(ws, { type: 'status', status: 'listening' })
+      }
+
       session.currentAudioChunks.push(chunk)
       if (session.currentAudioChunks.length > 200) {
         session.currentAudioChunks = session.currentAudioChunks.slice(-200)
       }
-      session.currentPeakLevel = Math.max(session.currentPeakLevel, computePeakLevel(chunk))
-
-      if (session.isSpeaking) {
-        session.isSpeaking = false
-        session.currentReplyToken += 1
-        sendJson(ws, { type: 'clear_audio' })
-        sendJson(ws, { type: 'status', status: 'listening' })
-      }
+      session.currentPeakLevel = Math.max(session.currentPeakLevel, chunkPeakLevel)
 
       if (deepgram.readyState === WebSocket.OPEN) {
         deepgram.send(chunk)

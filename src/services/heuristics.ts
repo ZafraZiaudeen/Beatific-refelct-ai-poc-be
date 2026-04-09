@@ -71,8 +71,8 @@ const getEvidenceQuote = (session: LiveSession, currentEntry: TranscriptEntry): 
     .find((entry) => entry.id !== currentEntry.id && entry.speakerRole === currentEntry.speakerRole) ?? null
 
 export const buildOpeningLine = (session: LiveSession): string => {
-  const partnerA = session.profiles.find((profile) => profile.role === 'partner_a')?.displayName ?? 'Partner A'
-  const partnerB = session.profiles.find((profile) => profile.role === 'partner_b')?.displayName ?? 'Partner B'
+  const partnerA = session.profiles.find((p) => p.role === 'partner_a')?.displayName ?? 'Partner A'
+  const partnerB = session.profiles.find((p) => p.role === 'partner_b')?.displayName ?? 'Partner B'
 
   if (session.previousSummary?.nextOpeningPrompt) {
     return `Welcome back, ${partnerA} and ${partnerB}. Last time I asked you to return to this: ${session.previousSummary.nextOpeningPrompt}`

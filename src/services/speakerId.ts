@@ -36,7 +36,8 @@ export const identifySpeaker = async (input: {
         embedding: profile.embedding,
       })),
     })
-  } catch {
+  } catch (err) {
+    console.error('[reflect-ai-poc-be] Speaker identification request failed:', err)
     return {
       role: 'unknown',
       confidence: 0,

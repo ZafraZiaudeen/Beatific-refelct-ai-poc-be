@@ -4,8 +4,8 @@ import type { LiveSession, SessionSummaryPayload, SpeakerProfileInput } from '..
 const sessions = new Map<string, LiveSession>()
 
 const buildSystemPrompt = (session: LiveSession): string => {
-  const partnerA = session.profiles.find((profile) => profile.role === 'partner_a')?.displayName ?? 'Partner A'
-  const partnerB = session.profiles.find((profile) => profile.role === 'partner_b')?.displayName ?? 'Partner B'
+  const partnerA = session.profiles.find((p) => p.role === 'partner_a')?.displayName ?? 'Partner A'
+  const partnerB = session.profiles.find((p) => p.role === 'partner_b')?.displayName ?? 'Partner B'
 
   const parts = [
     'You are Mirror, a firm but useful couples conversation coach.',
